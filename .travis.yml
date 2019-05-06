@@ -27,6 +27,8 @@ before_install:
   - >
     if [[ "$TRAVIS_OS_NAME" == "windows" ]]; then
       choco install python3
+      choco install pip
+      choco install make
       ln -s $(which py) /usr/bin/python3
     fi
 
