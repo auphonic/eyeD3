@@ -32,7 +32,7 @@ def testPluginOption():
                     sout = out.stdout.read()
                     assert sout.find("Plugin options:\n  Classic eyeD3") != -1
 
-@unittest.skipIf(not os.path.exists(DATA_D), "test requires data files")
+@unittest.skipIf(not os.path.exists(os.path.join(DATA_D, "test.mp3")), "test requires data files")
 def testReadEmptyMp3():
     with RedirectStdStreams() as out:
         args, _, config = main.parseCommandLine([os.path.join(DATA_D,
@@ -48,7 +48,7 @@ class TestDefaultPlugin(unittest.TestCase):
         self.orig_test_file = "%s/test.mp3" % DATA_D
         self.test_file = "/tmp/test.mp3"
 
-    @unittest.skipIf(not os.path.exists(DATA_D), "test requires data files")
+    @unittest.skipIf(not os.path.exists(os.path.join(DATA_D, "test.mp3")), "test requires data files")
     def setUp(self):
         shutil.copy(self.orig_test_file, self.test_file)
 
@@ -729,6 +729,7 @@ def test_lyrics(audiofile, tmpdir, eyeD3):
     eyeD3(audiofile, ["--add-lyrics", "eminem.txt"], expected_retval=2)
 
 
+@pytest.mark.skipif(not os.path.exists(os.path.join(DATA_D, "CypressHill3TemplesOfBoom.jpg")), reason="test requires data files")
 @pytest.mark.coveragewhore
 def test_all(audiofile, image, eyeD3):
     audiofile = eyeD3(audiofile,

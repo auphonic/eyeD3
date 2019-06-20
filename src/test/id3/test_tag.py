@@ -1059,7 +1059,7 @@ def test_TSST_Conversions():
         os.remove(test_file)
 
 
-@unittest.skipIf(not os.path.exists(DATA_D), "test requires data files")
+@unittest.skipIf(not os.path.exists(os.path.join(DATA_D, "id3_chapters_example.mp3")), "test requires data files")
 def testChapterExampleTag():
     tag = eyed3.load(os.path.join(DATA_D, "id3_chapters_example.mp3")).tag
 

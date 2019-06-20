@@ -64,7 +64,7 @@ def _test_file(pth):
     return errors
 
 
-@unittest.skipIf(not os.path.exists(DATA_D), "test requires data files")
+@unittest.skipIf(not os.path.exists(os.path.join(DATA_D, "mp3_samples")), "test requires data files")
 def test_mp3_infos(do_assert=True):
     data_d = os.path.join(DATA_D, "mp3_samples")
     mp3s = sorted([f for f in os.listdir(data_d) if f.endswith(".mp3")])

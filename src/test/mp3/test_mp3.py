@@ -70,7 +70,7 @@ def testFindHeader():
     assert header_int == 0xfffb9064
 
 
-@unittest.skipIf(not os.path.exists(DATA_D), "test requires data files")
+@unittest.skipIf(not os.path.exists(os.path.join(DATA_D, "notag-vbr.mp3")), "test requires data files")
 def testBasicVbrMp3():
     audio_file = eyed3.load(os.path.join(DATA_D, "notag-vbr.mp3"))
     assert isinstance(audio_file, eyed3.mp3.Mp3AudioFile)

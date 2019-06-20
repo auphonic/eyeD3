@@ -17,7 +17,7 @@ from eyed3.utils.console import (printMsg, printWarning, printHeader, Fore,
 from . import DATA_D, RedirectStdStreams
 
 
-@pytest.mark.skipif(not os.path.exists(DATA_D),
+@pytest.mark.skipif(not os.path.exists(os.path.join(DATA_D, "sample.wav")),
                     reason="test requires data files")
 @pytest.mark.parametrize(("ext", "valid_types"),
                          [("id3", ["application/x-id3"]),
