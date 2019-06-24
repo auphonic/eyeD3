@@ -92,3 +92,5 @@ try:
 except ValueError as ex:
     print("Expected:", ex)
 
+# NOTE by grh 2019:
+# See src/test/id3/test_chapters.py how to create MP3 chapters!

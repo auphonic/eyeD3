@@ -1,6 +1,7 @@
 from io import BytesIO
 from codecs import ascii_encode
 from collections import namedtuple
+import mimetypes
 
 from .. import core
 from ..utils import requireUnicode, requireBytes
@@ -528,6 +529,7 @@ class ImageFrame(Frame):
 
         self.picture_type = picture_type
         self.mime_type = mime_type
+        self.encoding = LATIN1_ENCODING
 
     @property
     def description(self):
@@ -1254,10 +1256,22 @@ class TocFrame(Frame):
         if self.ordered:
             flags[self.ORDERED_FLAG_BIT] = 1
 
+        # ensure that element_id is byte
+        if not isinstance(self.element_id, bytes):
+            try:
+                self.element_id = bytes(self.element_id, "ascii")  # ASCII ??
+            except UnicodeEncodeError:
+                self.element_id = b"toc"  # fallback id
+
         data = (self.element_id + b'\x00' +
                 bin2bytes(flags) + dec2bytes(len(self.child_ids)))
 
-        for cid in self.child_ids:
+        for i, cid in enumerate(self.child_ids):
+            if not isinstance(cid, bytes):
+                try:
+                    cid = bytes(cid, "ascii")
+                except UnicodeEncodeError:
+                    cid = b"chap%d" % (i + 1)  # fallback id
             data += cid + b'\x00'
 
         if self.description is not None:
@@ -1330,11 +1344,15 @@ class ChapterFrame(Frame):
             self.sub_frames = FrameSet()
 
     def render(self):
+        # ensure ASCII (?) encoding of element ID
+        if not isinstance(self.element_id, bytes):
+            self.element_id = bytes(self.element_id, "ascii")
+
         data = self.element_id + b'\x00'
 
         for n in self.times + self.offsets:
             if n is not None:
-                data += dec2bytes(n, 32)
+                data += dec2bytes(int(n), 32)
             else:
                 data += b'\xff\xff\xff\xff'
 
@@ -1353,6 +1371,8 @@ class ChapterFrame(Frame):
 
     @title.setter
     def title(self, title):
+        if hasattr(self, 'version'):
+            self.sub_frames.version = self.version
         self.sub_frames.setTextFrame(TITLE_FID, title)
 
     @property
@@ -1363,6 +1383,8 @@ class ChapterFrame(Frame):
 
     @subtitle.setter
     def subtitle(self, subtitle):
+        if hasattr(self, 'version'):
+            self.sub_frames.version = self.version
         self.sub_frames.setTextFrame(SUBTITLE_FID, subtitle)
 
     @property
@@ -1389,6 +1411,21 @@ class ChapterFrame(Frame):
 
             self.sub_frames[USERURL_FID] = UserUrlFrame(USERURL_FID,
                                                         DESCRIPTION, url)
+
+    @property
+    def chapter_image(self):
+        if IMAGE_FID in self.sub_frames:
+            frame = self.sub_frames[IMAGE_FID][0]
+            return frame.image_data
+        return None
+
+    @chapter_image.setter
+    def chapter_image(self, path):
+        f = open(path, 'rb')
+        mime_type = mimetypes.guess_type(path)[0]
+        if hasattr(self, 'version'):
+            self.sub_frames.version = self.version
+        self.sub_frames.setImageFrame(f.read(), mime_type)
 
 
 # XXX: This data structure pretty sucks, or it is beautiful anarchy
@@ -1487,11 +1524,31 @@ class FrameSet(dict):
     def getAllFrames(self):
         """Return all the frames in the set as a list. The list is sorted
         in an arbitrary but consistent order."""
+        chapter_frames = []
+        ctoc_frames = []
+        title_frames = []
         frames = []
+        values = []
+
+        # we have to linearize the list (e.g. CHAP frames are in a sublist)
         for flist in list(self.values()):
-            frames += flist
+            values += flist
+
+        for flist in values:
+            if flist.id in TITLE_FID:
+                title_frames.append(flist)
+            if flist.id in CHAPTER_FID:
+                chapter_frames.append(flist)
+            elif flist.id in TOC_FID:
+                ctoc_frames.append(flist)
+            else:
+                frames.append(flist)
         frames.sort()
-        return frames
+
+        # first we need the title (some audio players require that,
+        # especially within chapters), then all other frames (sorted!),
+        # then CTOC and CHAP at the end
+        return title_frames + frames + ctoc_frames + chapter_frames
 
     @requireBytes(1)
     @requireUnicode(2)
@@ -1508,9 +1565,36 @@ class FrameSet(dict):
             self[fid][0].text = text
         else:
             if fid in (DATE_FIDS + DEPRECATED_DATE_FIDS):
-                self[fid] = DateFrame(fid, date=text)
+                frame = DateFrame(fid, date=text)
             else:
-                self[fid] = TextFrame(fid, text=text)
+                frame = TextFrame(fid, text=text)
+
+            if hasattr(self, 'version'):
+                frame.header = FrameHeader(fid, self.version)
+
+            self[fid] = frame
+
+    def setUserUrlFrame(self, fid, description, url):
+        assert(fid[0] == b"W" and (fid in ID3_FRAMES or
+                                   fid in NONSTANDARD_ID3_FRAMES))
+
+        if fid in self:
+            self[fid][0].description = description
+            self[fid][0].url = url
+        else:
+            user_url_frame = UserUrlFrame(fid, description, url)
+            if hasattr(self, 'version'):
+                user_url_frame.header = FrameHeader(fid, self.version)
+            self[fid] = user_url_frame
+
+    def setImageFrame(self, img_data, mime_type, description="Chapter Image",
+                      img_url=None):
+        image_frame = ImageFrame(description=description, image_data=img_data,
+                                 image_url=img_url, mime_type=mime_type,
+                                 picture_type=ImageFrame.OTHER)
+        if hasattr(self, 'version'):
+            image_frame.header = FrameHeader(IMAGE_FID, self.version)
+        self[IMAGE_FID] = image_frame
 
     @requireBytes(1)
     def __contains__(self, fid):
